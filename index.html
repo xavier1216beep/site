@@ -1,0 +1,551 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sony α — Taken apart, put back together</title>
+<meta name="description" content="Scroll to take the camera apart, then see everything about it, the price, and how to order.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,100..900&family=Hanken+Grotesk:wght@400;500;600&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink:#120504;
+    --deep:#2a0b06;
+    --ember:#e8461a;
+    --glow:#ff8a3d;
+    --bone:#f3e9e1;
+    --ash:#b09a8f;
+    --display:"Archivo","Arial Narrow",Arial,sans-serif;
+    --serif:"Instrument Serif","Iowan Old Style",Georgia,serif;
+    --body:"Hanken Grotesk",system-ui,-apple-system,"Segoe UI",sans-serif;
+    --pad:clamp(20px,6vw,96px);
+    --ease:cubic-bezier(.2,.7,.1,1);
+    --side:calc((100vw - min(100vw, 100svh * 9 / 16)) / 2 - var(--pad) - 28px);
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html{scroll-behavior:smooth;background:var(--ink)}
+  body{background:var(--ink);color:var(--bone);font-family:var(--body);font-size:1.0625rem;line-height:1.6;-webkit-font-smoothing:antialiased;overflow-x:hidden}
+  a{color:inherit}
+  :focus-visible{outline:3px solid var(--glow);outline-offset:3px}
+  .display{font-family:var(--display);font-stretch:112%;font-weight:800;line-height:.95;letter-spacing:-.02em}
+  .serif{font-family:var(--serif);font-style:italic;font-weight:400;letter-spacing:-.01em}
+
+  /* ---------- word-by-word reveal (used by headlines) ---------- */
+  .w{display:inline-block;overflow:hidden;vertical-align:top;padding:.1em .12em .26em;margin:-.1em -.12em -.26em}
+  .w>span{display:inline-block;transform:translateY(115%);transition:transform .85s var(--ease);transition-delay:0s}
+  .beat.on .w>span,.split.in .w>span{transform:none;transition-delay:calc(var(--i) * 70ms)}
+  .rise{opacity:0;transform:translateY(28px);transition:opacity .8s var(--ease),transform .8s var(--ease)}
+  .rise.in{opacity:1;transform:none}
+
+  /* ---------- top bar ---------- */
+  .bar{position:fixed;inset:0 0 auto 0;z-index:50;display:flex;justify-content:space-between;align-items:center;padding:18px clamp(18px,4vw,48px);pointer-events:none}
+  .bar > *{pointer-events:auto}
+  .brand{font-family:var(--display);font-stretch:125%;font-weight:800;font-size:1.05rem;text-decoration:none;letter-spacing:.01em}
+  .bar nav{display:flex;gap:6px}
+  .bar nav a{font-size:.95rem;font-weight:500;text-decoration:none;padding:8px 14px;border-radius:99px;background:rgba(18,5,4,.55);backdrop-filter:blur(8px)}
+  .bar nav a.buy{background:var(--ember);color:#fff}
+  .bar nav a:hover{background:var(--glow);color:var(--ink)}
+
+  /* ---------- loader ---------- */
+  .loader{position:fixed;inset:0;z-index:100;background:var(--ink);display:grid;place-content:center;gap:16px;text-align:center;transition:opacity .6s ease,visibility .6s}
+  .loader.done{opacity:0;visibility:hidden}
+  .loader p{font-family:var(--serif);font-style:italic;font-size:1.9rem}
+  .loader .track{width:min(260px,70vw);height:3px;background:rgba(243,233,225,.15);border-radius:3px;overflow:hidden;margin:0 auto}
+  .loader .fill{height:100%;width:0;background:linear-gradient(90deg,var(--ember),var(--glow))}
+
+  /* ---------- scroll-frame sequence ---------- */
+  .sequence{position:relative;height:700vh}
+  .stage{position:sticky;top:0;height:100vh;height:100svh;overflow:hidden;background:#1a0503}
+  /* blurred copy of the current frame fills the whole screen so the background always matches */
+  #bg{position:absolute;inset:0;width:100%;height:100%;filter:blur(34px);transform:scale(1.12)}
+  #canvas{position:absolute;top:0;left:50%;height:100%;width:min(100%,calc(100svh * 9 / 16));transform:translateX(-50%);object-fit:cover;z-index:1;
+    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 93%,transparent 100%);
+            mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 93%,transparent 100%)}
+  .progress{z-index:5;position:absolute;right:clamp(14px,3vw,36px);top:50%;width:3px;height:120px;transform:translateY(-50%);background:rgba(243,233,225,.2);border-radius:3px;overflow:hidden}
+  .progress i{display:block;width:100%;height:0;background:var(--glow)}
+
+  .beat{--shift:0px;z-index:5;position:absolute;left:var(--pad);top:50%;max-width:var(--side);opacity:0;transform:translateY(calc(-50% + var(--shift)));transition:opacity .5s ease;pointer-events:none;text-shadow:0 2px 28px rgba(0,0,0,.55),0 1px 3px rgba(0,0,0,.45)}
+  .beat.on{opacity:1}
+  .beat[data-side="right"]{left:auto;right:var(--pad);text-align:right}
+  .beat h2{font-size:clamp(1.9rem,calc(var(--side) / 6.4),4.4rem);margin-bottom:18px}
+  .beat .deck{font-family:var(--body);font-size:clamp(1rem,calc(var(--side) / 20),1.2rem);line-height:1.55;max-width:32ch;opacity:.92}
+  .beat[data-side="right"] .deck{margin-left:auto}
+
+  .beat.hero{max-width:var(--side)}
+  .beat.hero h1{margin-bottom:20px;font-size:clamp(2.1rem,calc(var(--side) / 6.8),5rem)}
+  .hint{display:inline-block;margin-top:26px;font-size:.95rem;color:var(--glow);font-weight:600}
+
+  @media (max-width:900px),(max-aspect-ratio:4/3){
+    #canvas{top:7svh;height:57svh;width:min(100%,calc(57svh * 9 / 16));
+      -webkit-mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 93%,transparent 100%),linear-gradient(to bottom,transparent 0,#000 9%,#000 91%,transparent 100%);
+      -webkit-mask-composite:source-in;
+              mask-image:linear-gradient(to right,transparent 0,#000 7%,#000 93%,transparent 100%),linear-gradient(to bottom,transparent 0,#000 9%,#000 91%,transparent 100%);
+              mask-composite:intersect}
+    .beat,.beat[data-side="right"]{left:20px;right:20px;top:auto;bottom:4svh;max-width:none;text-align:left;transform:translateY(var(--shift))}
+    .beat[data-side="right"] .deck{margin-left:0}
+    .beat h2{font-size:clamp(1.9rem,8vw,2.6rem);margin-bottom:12px}
+    .beat .deck{font-size:1.05rem}
+    .beat.hero{max-width:none}
+    .beat.hero h1{font-size:clamp(2.2rem,10vw,3.2rem);margin-bottom:12px}
+    .hint{margin-top:14px}
+    .progress{display:none}
+  }
+
+  /* ---------- everything about the product ---------- */
+  .about{padding:clamp(80px,12vw,180px) var(--pad);background:var(--ink)}
+  .wrap{max-width:1280px;margin:0 auto}
+  .about-head{display:grid;grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:clamp(28px,6vw,100px);align-items:end}
+  .about-head h2{font-size:clamp(2.6rem,7vw,6.6rem)}
+    .lead{font-size:1.15rem;line-height:1.7;color:var(--bone);opacity:.85;max-width:40ch}
+
+  .pull{margin:clamp(70px,11vw,160px) 0;white-space:nowrap;transform:translateX(var(--x,0px));will-change:transform}
+  .pull p{font-family:var(--serif);font-style:italic;font-size:clamp(2.4rem,10vw,9.5rem);line-height:1;color:transparent;-webkit-text-stroke:1.5px var(--bone)}
+  .pull p span{color:var(--ember);-webkit-text-stroke:0}
+
+  .rows{border-top:1px solid rgba(243,233,225,.2)}
+  .row-f{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:clamp(18px,5vw,80px);align-items:baseline;padding:clamp(24px,3.2vw,40px) 0;border-bottom:1px solid rgba(243,233,225,.2);transition:padding .4s var(--ease)}
+  .row-f h3{font-family:var(--display);font-stretch:108%;font-weight:700;font-size:clamp(1.5rem,3.1vw,2.7rem);line-height:1.05;letter-spacing:-.01em;transition:color .3s,transform .4s var(--ease)}
+  .row-f p{color:var(--ash);max-width:44ch}
+  .row-f:hover h3{color:var(--glow);transform:translateX(14px)}
+
+  .specs{margin-top:clamp(70px,10vw,150px);display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(28px,6vw,100px)}
+  .specs h3{font-size:clamp(2rem,4vw,3.6rem)}
+  .specs h3 .serif{display:block;font-size:1.15em;line-height:.9}
+  .specs dl div{display:flex;align-items:baseline;gap:14px;padding:16px 0}
+  .specs dt{color:var(--ash);white-space:nowrap}
+  .specs dl div::after{content:"";order:1;flex:1;border-bottom:1px dotted rgba(243,233,225,.35);transform:translateY(-4px)}
+  .specs dd{order:2;font-family:var(--display);font-stretch:104%;font-weight:600;font-size:1.2rem;text-align:right}
+  @media (max-width:860px){.about-head,.specs,.row-f{grid-template-columns:1fr}.row-f{gap:10px}}
+
+  /* ---------- price ---------- */
+  .price{position:relative;padding:clamp(90px,13vw,180px) var(--pad);background:radial-gradient(90% 120% at 50% 110%,var(--glow) 0%,var(--ember) 34%,#6d1d07 72%,var(--deep) 100%);overflow:hidden}
+  .price .wrap{display:grid;gap:clamp(30px,5vw,70px)}
+  .price h2{font-size:clamp(2rem,4vw,3.4rem)}
+  .amount{display:flex;align-items:flex-start;gap:.08em;font-family:var(--display);font-stretch:118%;font-weight:900;font-size:clamp(3.4rem,12vw,11rem);line-height:.9;letter-spacing:-.03em;color:#fff;max-width:100%}
+  .amount small{font-size:.3em;font-weight:700;letter-spacing:0;padding-top:.28em}
+  .price-cols{display:grid;grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:clamp(28px,6vw,100px);align-items:start}
+  .price-note{font-family:var(--serif);font-style:italic;font-size:clamp(1.4rem,2.2vw,2rem);line-height:1.2;max-width:22em;color:#fff}
+  .price-fine{margin-top:16px;max-width:42ch;color:rgba(255,255,255,.85);font-size:.95rem}
+  .box h3{font-family:var(--display);font-stretch:108%;font-weight:700;font-size:1.15rem;margin-bottom:6px}
+  .box ul{list-style:none;margin-bottom:28px}
+  .box li{padding:12px 0;border-bottom:1px dotted rgba(255,255,255,.5);font-weight:500}
+  .btn{display:inline-block;background:var(--ink);color:var(--bone);text-decoration:none;padding:16px 30px;border-radius:99px;border:0;font:inherit;font-weight:600;cursor:pointer;transition:background .2s,color .2s}
+  .btn:hover{background:var(--bone);color:var(--ink)}
+  .btn.ember{background:var(--ember);color:#fff}
+  .btn.ember:hover{background:var(--glow);color:var(--ink)}
+  @media (max-width:860px){.price-cols{grid-template-columns:1fr}}
+
+  /* ---------- contact ---------- */
+  .contact{padding:clamp(80px,12vw,170px) var(--pad);background:var(--ink)}
+  .contact-grid{display:grid;grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:clamp(32px,6vw,110px)}
+  .contact h2{font-size:clamp(2.6rem,6vw,5.6rem);margin-bottom:24px}
+  .contact h2 .serif{display:block;font-size:1.15em;line-height:.9}
+  .contact-info .deck{font-family:var(--serif);font-style:italic;font-size:clamp(1.3rem,1.9vw,1.7rem);line-height:1.25;margin-bottom:34px;max-width:18em}
+  .contact-info address{font-style:normal;display:grid;gap:14px}
+  .contact-info address span{display:block;color:var(--ash);font-size:.9rem}
+  .contact-info address a,.contact-info address b{font-weight:500;font-size:1.15rem;text-decoration:none}
+  .contact-info address a:hover{color:var(--glow)}
+  form{display:grid;gap:26px;align-content:start}
+  .row{display:grid;grid-template-columns:1fr 1fr;gap:26px}
+  label{display:grid;gap:6px;font-size:.92rem;color:var(--ash)}
+  input,textarea,select{font:inherit;font-size:1.15rem;color:var(--bone);background:transparent;border:0;border-bottom:1px solid rgba(243,233,225,.35);border-radius:0;padding:10px 0;width:100%;transition:border-color .2s}
+  input:hover,textarea:hover,select:hover{border-color:rgba(243,233,225,.7)}
+  input:focus,textarea:focus,select:focus{border-color:var(--glow);outline:none}
+  textarea{min-height:130px;resize:vertical}
+  select option{color:#000}
+  .form-note{color:var(--ash);font-size:.92rem;min-height:1.4em}
+  @media (max-width:860px){.contact-grid,.row{grid-template-columns:1fr}}
+
+  /* ---------- footer ---------- */
+  footer{position:relative;padding:48px var(--pad) 0;background:#0a0302;color:var(--ash);font-size:.95rem;overflow:hidden}
+  .foot{max-width:1280px;margin:0 auto;display:flex;flex-wrap:wrap;justify-content:space-between;gap:24px}
+  .foot nav{display:flex;flex-wrap:wrap;gap:22px}
+  .foot a{text-decoration:none}
+  .foot a:hover{color:var(--glow)}
+  .legal{max-width:1280px;margin:26px auto 0;font-size:.85rem;opacity:.8}
+  .wordmark{font-family:var(--display);font-stretch:125%;font-weight:900;font-size:clamp(3.4rem,15.5vw,14rem);line-height:1.05;padding-bottom:.1em;letter-spacing:-.04em;white-space:nowrap;margin:clamp(28px,5vw,60px) 0 0 0;color:#4a1608;-webkit-mask-image:linear-gradient(180deg,#000 10%,transparent 95%);mask-image:linear-gradient(180deg,#000 10%,transparent 95%);user-select:none}
+
+  @media (prefers-reduced-motion:reduce){
+    html{scroll-behavior:auto}
+    .w>span,.rise,.beat{transition:none}
+    .pull{transform:none!important}
+  }
+</style>
+</head>
+<body>
+
+<div class="loader" id="loader" role="status" aria-live="polite">
+  <p>Loading the camera</p>
+  <div class="track"><div class="fill" id="loaderFill"></div></div>
+</div>
+
+<header class="bar">
+  <a class="brand" href="#top">Sony α</a>
+  <nav aria-label="Main">
+    <a href="#details">Details</a>
+    <a href="#price">Price</a>
+    <a class="buy" href="#contact">Order</a>
+  </nav>
+</header>
+
+<main id="top">
+
+  <!-- ===== Scroll-driven video frames ===== -->
+  <section class="sequence" id="sequence" aria-label="Product film">
+    <div class="stage">
+      <canvas id="bg" width="36" height="64" aria-hidden="true"></canvas>
+      <canvas id="canvas" width="720" height="1280" role="img" aria-label="The camera flying apart and coming back together as you scroll"></canvas>
+
+      <div class="beat hero" data-from="0.0" data-to="0.1485">
+        <h1 class="display split-me">Look closer.</h1>
+        <p class="deck">Every detail was built for the moment you can’t repeat.</p>
+        <span class="hint">Scroll to begin</span>
+      </div>
+
+      <div class="beat" data-side="right" data-from="0.1485" data-to="0.2145">
+        <h2 class="display split-me">Sony α7 III.</h2>
+        <p class="deck">Full-frame power, ready when you are.</p>
+      </div>
+
+      <div class="beat" data-from="0.2145" data-to="0.286">
+        <h2 class="display split-me">Control, at your fingertips.</h2>
+        <p class="deck">Mode and exposure dials that put every creative decision one turn away.</p>
+      </div>
+
+      <div class="beat" data-side="right" data-from="0.286" data-to="0.385">
+        <h2 class="display split-me">See it before you shoot it.</h2>
+        <p class="deck">A sharp electronic viewfinder that shows your exposure as you frame.</p>
+      </div>
+
+      <div class="beat" data-from="0.385" data-to="0.4895">
+        <h2 class="display split-me">Never miss a take.</h2>
+        <p class="deck">Dual card slots for backup or overflow, so your work is always safe.</p>
+      </div>
+
+      <div class="beat" data-side="right" data-from="0.4895" data-to="0.6985">
+        <h2 class="display split-me">Now, look inside.</h2>
+        <p class="deck">Precision engineering, layer by layer.</p>
+      </div>
+
+      <div class="beat" data-from="0.6985" data-to="0.88">
+        <h2 class="display split-me">Every part. Perfectly placed.</h2>
+        <p class="deck">A 24.2MP full-frame sensor, 5-axis stabilization, and 693 AF points, working as one.</p>
+      </div>
+
+      <div class="beat" data-side="right" data-from="0.88" data-to="1.01">
+        <h2 class="display split-me">Built to capture everything.</h2>
+        <p class="deck">The Sony α7 III. Your next frame starts here.</p>
+      </div>
+
+      <div class="progress" aria-hidden="true"><i id="progressFill"></i></div>
+    </div>
+  </section>
+
+  <!-- ===== Everything about the product ===== -->
+  <section class="about" id="details" aria-labelledby="aboutTitle">
+    <div class="wrap">
+      <div class="about-head">
+        <h2 class="display split" id="aboutTitle"><span class="split-me">Everything about the camera</span></h2>
+        <p class="lead rise">Made for people who shoot a lot. A full-frame sensor, fast autofocus, a bright viewfinder and controls you set up once. Replace this text with your own description and your exact model.</p>
+      </div>
+
+      <div class="pull" data-drift aria-hidden="true"><p>Every part has a <span>job.</span></p></div>
+
+      <div class="rows">
+        <article class="row-f rise">
+          <h3>Full-frame image sensor</h3>
+          <p>Large sensor for sharp detail, clean low-light shots and shallow depth of field. Replace this with your model's exact resolution.</p>
+        </article>
+        <article class="row-f rise">
+          <h3>Fast, reliable autofocus</h3>
+          <p>Tracks faces, eyes and moving subjects so you spend your time framing, not hunting for focus.</p>
+        </article>
+        <article class="row-f rise">
+          <h3>Viewfinder and tilting screen</h3>
+          <p>Compose through the viewfinder in bright light or use the rear screen for low and high angles.</p>
+        </article>
+        <article class="row-f rise">
+          <h3>Video beyond stills</h3>
+          <p>Shoot high-quality 4K video with the same lens and the same controls you use for photos.</p>
+        </article>
+        <article class="row-f rise">
+          <h3>Dials you can customize</h3>
+          <p>Assign your most-used settings to the dials and custom buttons so your hands know where everything is.</p>
+        </article>
+        <article class="row-f rise">
+          <h3>Built to be used</h3>
+          <p>A sturdy body with a deep grip, made for long shoots and everyday carry.</p>
+        </article>
+      </div>
+
+      <div class="specs">
+        <h3 class="display split"><span class="split-me">At a</span> <span class="serif"><span class="split-me">glance</span></span></h3>
+        <dl>
+          <div class="rise"><dt>Sensor</dt><dd>Full-frame, 35 mm</dd></div>
+          <div class="rise"><dt>Lens shown</dt><dd>FE 28–70 mm f/3.5–5.6</dd></div>
+          <div class="rise"><dt>Viewfinder</dt><dd>Electronic (EVF)</dd></div>
+          <div class="rise"><dt>Rear screen</dt><dd>Tilting touchscreen</dd></div>
+          <div class="rise"><dt>Video</dt><dd>4K</dd></div>
+          <div class="rise"><dt>Mount</dt><dd>Sony E-mount</dd></div>
+        </dl>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Price ===== -->
+  <section class="price" id="price" aria-labelledby="priceTitle">
+    <div class="wrap">
+      <h2 class="display split" id="priceTitle"><span class="split-me">The price</span></h2>
+      <div class="amount rise" aria-label="129,990 pesos"><small>₱</small><span>129,990</span></div>
+      <div class="price-cols">
+        <div>
+          <p class="price-note rise">One body, one lens and everything you need to start shooting.</p>
+          <p class="price-fine rise">Sample price. Change it to your real price in index.html, and add your warranty, payment and delivery terms here.</p>
+        </div>
+        <div class="box rise">
+          <h3>In the box</h3>
+          <ul>
+            <li>Camera body</li>
+            <li>FE 28–70 mm lens</li>
+            <li>Rechargeable battery and charger</li>
+            <li>Strap and body cap</li>
+          </ul>
+          <a class="btn" href="#contact">Order this camera</a>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===== Contact ===== -->
+  <section class="contact" id="contact" aria-labelledby="contactTitle">
+    <div class="wrap contact-grid">
+      <div class="contact-info">
+        <h2 class="display split" id="contactTitle"><span class="split-me">Contact</span> <span class="serif"><span class="split-me">us</span></span></h2>
+        <p class="deck rise">Ask a question, check stock or place an order. We reply the same day.</p>
+        <address class="rise">
+          <div><span>Email</span><a href="mailto:hello@example.com">hello@example.com</a></div>
+          <div><span>Phone</span><a href="tel:+639000000000">+63 900 000 0000</a></div>
+          <div><span>Location</span><b>Cebu City, Philippines</b></div>
+        </address>
+      </div>
+
+      <form id="contactForm" class="rise" novalidate>
+        <div class="row">
+          <label>Name<input name="name" autocomplete="name" required></label>
+          <label>Email<input name="email" type="email" autocomplete="email" required></label>
+        </div>
+        <label>I want to
+          <select name="topic">
+            <option>Order the camera</option>
+            <option>Ask a question</option>
+            <option>Check stock and delivery</option>
+          </select>
+        </label>
+        <label>Message<textarea name="message" required></textarea></label>
+        <div><button class="btn ember" type="submit">Send message</button></div>
+        <p class="form-note" id="formNote" role="status"></p>
+      </form>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="foot">
+    <a class="brand" href="#top">Sony α</a>
+    <nav aria-label="Footer">
+      <a href="#details">Details</a>
+      <a href="#price">Price</a>
+      <a href="#contact">Contact</a>
+    </nav>
+    <span>© <span id="year"></span> Your shop name</span>
+  </div>
+  <p class="legal">Sony and α are trademarks of Sony Group Corporation. This page is an independent showcase.</p>
+  <div class="wordmark" aria-hidden="true">Sony α</div>
+</footer>
+
+<script>
+(function(){
+  // ---------- settings ----------
+  var FRAME_COUNT = 161;
+  var HOLD = 0.88;   // the film finishes at 88% of the scroll, the last frame then holds
+  var FRAME_PATH  = function(i){ return "frames/f_" + String(i).padStart(3,"0") + ".webp"; };
+
+  var canvas = document.getElementById("canvas");
+  var ctx = canvas.getContext("2d");
+  var bg = document.getElementById("bg");
+  var bctx = bg.getContext("2d");
+  var L = {x:0,y:0,w:1,h:1};
+  var stage = document.querySelector(".stage");
+  var seq = document.getElementById("sequence");
+  var beats = Array.prototype.slice.call(document.querySelectorAll(".beat"));
+  var drifts = Array.prototype.slice.call(document.querySelectorAll("[data-drift]"));
+  var progressFill = document.getElementById("progressFill");
+  var loader = document.getElementById("loader");
+  var loaderFill = document.getElementById("loaderFill");
+  var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+  var frames = new Array(FRAME_COUNT);
+  var loaded = 0, current = -1, target = 0, shown = 0, ready = false;
+
+  document.getElementById("year").textContent = new Date().getFullYear();
+
+  // ---------- split headlines into words for the reveal ----------
+  function splitNode(node, counter){
+    Array.prototype.slice.call(node.childNodes).forEach(function(n){
+      if(n.nodeType === 3){
+        var parts = n.textContent.split(/(\s+)/), frag = document.createDocumentFragment();
+        parts.forEach(function(t){
+          if(!t) return;
+          if(/^\s+$/.test(t)){ frag.appendChild(document.createTextNode(" ")); return; }
+          var w = document.createElement("span"); w.className = "w";
+          var i = document.createElement("span"); i.textContent = t; i.style.setProperty("--i", counter.n++);
+          w.appendChild(i); frag.appendChild(w);
+        });
+        n.parentNode.replaceChild(frag, n);
+      } else if(n.nodeType === 1){ splitNode(n, counter); }
+    });
+  }
+  Array.prototype.slice.call(document.querySelectorAll(".beat, .split")).forEach(function(root){
+    var counter = {n:0};
+    var targets = root.querySelectorAll(".split-me");
+    if(root.classList.contains("split-me")) targets = [root];
+    // hero h1 and other headlines: split each marked piece, keep word order across pieces
+    Array.prototype.slice.call(targets).forEach(function(t){ splitNode(t, counter); });
+    if(root.classList.contains("beat") && root.querySelector(".deck")){
+      // deck line fades in after the headline words
+      var d = root.querySelector(".deck"); d.style.opacity = "0";
+    }
+  });
+  // headings that are marked split-me but sit inside .beat as the element itself
+  Array.prototype.slice.call(document.querySelectorAll("h2.split-me")).forEach(function(h){
+    if(!h.querySelector(".w")){ splitNode(h, {n:0}); }
+  });
+
+  // ---------- reveal on scroll for page sections ----------
+  var io = new IntersectionObserver(function(entries){
+    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+  }, {threshold:0.25});
+  Array.prototype.slice.call(document.querySelectorAll(".split, .rise")).forEach(function(el){ io.observe(el); });
+
+  // ---------- drawing ----------
+  function draw(i){
+    var img = frames[i];
+    if(!img || !img.complete || !img.naturalWidth) return;
+    if(i === current) return;
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    drawBg(img);
+    current = i;
+  }
+  // The page background is the frame itself, extended outward from its own edge pixels,
+  // so the colours match the video exactly where the video ends.
+  function layout(){
+    var sr = stage.getBoundingClientRect(), cr = canvas.getBoundingClientRect(), K = 1/6;
+    bg.width = Math.max(8, Math.round(sr.width * K));
+    bg.height = Math.max(8, Math.round(sr.height * K));
+    L = {x:(cr.left - sr.left) * K, y:(cr.top - sr.top) * K, w:cr.width * K, h:cr.height * K};
+    bctx.imageSmoothingQuality = "high";
+    current = -1;
+  }
+  function drawBg(img){
+    var iw = img.naturalWidth, ih = img.naturalHeight, E = 6, W = bg.width, H = bg.height;
+    var x = L.x, y = L.y, w = L.w, h = L.h;
+    if(y > 0.5)         bctx.drawImage(img, 0, 0, iw, E, 0, 0, W, y + 1);
+    if(y + h < H - 0.5) bctx.drawImage(img, 0, ih - E, iw, E, 0, y + h - 1, W, H - (y + h) + 1);
+    if(x > 0.5)         bctx.drawImage(img, 0, 0, E, ih, 0, y, x + 1, h);
+    if(x + w < W - 0.5) bctx.drawImage(img, iw - E, 0, E, ih, x + w - 1, y, W - (x + w) + 1, h);
+    bctx.drawImage(img, x, y, w, h);
+  }
+  window.addEventListener("resize", layout);
+  function nearestLoaded(i){
+    for(var d = 0; d < FRAME_COUNT; d++){
+      var a = i - d, b = i + d;
+      if(a >= 0 && frames[a] && frames[a].naturalWidth) return a;
+      if(b < FRAME_COUNT && frames[b] && frames[b].naturalWidth) return b;
+    }
+    return 0;
+  }
+  function scrollProgress(){
+    var rect = seq.getBoundingClientRect();
+    var total = seq.offsetHeight - window.innerHeight;
+    return Math.min(1, Math.max(0, -rect.top / total));
+  }
+  function updateBeats(p){
+    beats.forEach(function(b){
+      var from = parseFloat(b.dataset.from), to = parseFloat(b.dataset.to);
+      var on = ready && p >= from && p < to;
+      b.classList.toggle("on", on);
+      var deck = b.querySelector(".deck");
+      if(deck){ deck.style.transition = "opacity .8s ease " + (on ? ".5s" : "0s"); deck.style.opacity = on ? ".92" : "0"; }
+      if(on && !reduce){
+        var t = (p - from) / (to - from);
+        b.style.setProperty("--shift", ((0.5 - t) * 70).toFixed(1) + "px"); // text drifts slowly while you scroll
+      }
+    });
+  }
+  function updateDrift(){
+    var vh = window.innerHeight;
+    drifts.forEach(function(el){
+      var r = el.getBoundingClientRect();
+      if(r.bottom < -200 || r.top > vh + 200) return;
+      var t = (r.top + r.height / 2) / vh;       // 1 at bottom of screen, 0 at top
+      el.style.setProperty("--x", ((t - 0.5) * -230).toFixed(1) + "px");
+    });
+  }
+
+  function tick(){
+    var p = scrollProgress();
+    target = Math.min(p / HOLD, 1) * (FRAME_COUNT - 1);
+    shown += (target - shown) * (reduce ? 1 : 0.14);
+    if(Math.abs(target - shown) < 0.02) shown = target;
+    draw(nearestLoaded(Math.round(shown)));
+    progressFill.style.height = (p * 100) + "%";
+    updateBeats(p);
+    if(!reduce) updateDrift();
+    requestAnimationFrame(tick);
+  }
+
+  // ---------- preload ----------
+  function finishLoad(){
+    if(ready) return;
+    loader.classList.add("done");
+    setTimeout(function(){ ready = true; }, 350); // hero text plays right after the loader fades
+  }
+  function onFrame(){
+    loaded++;
+    loaderFill.style.width = (loaded / FRAME_COUNT * 100) + "%";
+    if(loaded === 1) draw(0);
+    if(loaded === FRAME_COUNT) finishLoad();
+  }
+  for(var i = 0; i < FRAME_COUNT; i++){
+    (function(n){
+      var img = new Image();
+      img.onload = onFrame; img.onerror = onFrame;
+      img.src = FRAME_PATH(n + 1);
+      frames[n] = img;
+    })(i);
+  }
+  setTimeout(finishLoad, 12000); // never trap the visitor behind the loader
+  layout();
+  requestAnimationFrame(tick);
+
+  // ---------- contact form (opens the visitor's email app) ----------
+  var form = document.getElementById("contactForm");
+  var note = document.getElementById("formNote");
+  var TO = "hello@example.com"; // <- change to your email
+  form.addEventListener("submit", function(e){
+    e.preventDefault();
+    var d = new FormData(form);
+    if(!d.get("name") || !d.get("email") || !d.get("message")){
+      note.textContent = "Please fill in your name, email and message.";
+      return;
+    }
+    var subject = encodeURIComponent(d.get("topic") + " - " + d.get("name"));
+    var body = encodeURIComponent(d.get("message") + "\n\nFrom: " + d.get("name") + " (" + d.get("email") + ")");
+    window.location.href = "mailto:" + TO + "?subject=" + subject + "&body=" + body;
+    note.textContent = "Your email app should open with the message ready to send.";
+  });
+})();
+</script>
+</body>
+</html>
