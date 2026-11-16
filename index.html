@@ -166,6 +166,11 @@
   .legal{max-width:1280px;margin:26px auto 0;font-size:.85rem;opacity:.8}
   .wordmark{font-family:var(--display);font-stretch:125%;font-weight:900;font-size:clamp(3.4rem,15.5vw,14rem);line-height:1.05;padding-bottom:.1em;letter-spacing:-.04em;white-space:nowrap;margin:clamp(28px,5vw,60px) 0 0 0;color:#4a1608;-webkit-mask-image:linear-gradient(180deg,#000 10%,transparent 95%);mask-image:linear-gradient(180deg,#000 10%,transparent 95%);user-select:none}
 
+  /* when GSAP is running it controls these, so the CSS versions are switched off */
+  .gsap .beat,.gsap .beat .deck{transition:none}
+  .gsap .w>span{transform:none;transition:none}
+  .gsap .rise{opacity:1;transform:none;transition:none}
+
   @media (prefers-reduced-motion:reduce){
     html{scroll-behavior:auto}
     .w>span,.rise,.beat{transition:none}
@@ -370,6 +375,11 @@
   var FRAME_COUNT = 161;
   var HOLD = 0.88;   // the film finishes at 88% of the scroll, the last frame then holds
   var FRAME_PATH  = function(i){ return "frames/f_" + String(i).padStart(3,"0") + ".webp"; };
+  // GSAP is loaded from libs/ first (for offline use), then from the CDN.
+  var GSAP_URLS = [
+    ["libs/gsap.min.js", "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/gsap.min.js"],
+    ["libs/ScrollTrigger.min.js", "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.5/ScrollTrigger.min.js"]
+  ];
 
   var canvas = document.getElementById("canvas");
   var ctx = canvas.getContext("2d");
@@ -386,11 +396,11 @@
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
   var frames = new Array(FRAME_COUNT);
-  var loaded = 0, current = -1, target = 0, shown = 0, ready = false;
+  var loaded = 0, current = -1, ready = false, engine = null;
 
   document.getElementById("year").textContent = new Date().getFullYear();
 
-  // ---------- split headlines into words for the reveal ----------
+  // ---------- split headlines into words ----------
   function splitNode(node, counter){
     Array.prototype.slice.call(node.childNodes).forEach(function(n){
       if(n.nodeType === 3){
@@ -410,25 +420,10 @@
     var counter = {n:0};
     var targets = root.querySelectorAll(".split-me");
     if(root.classList.contains("split-me")) targets = [root];
-    // hero h1 and other headlines: split each marked piece, keep word order across pieces
     Array.prototype.slice.call(targets).forEach(function(t){ splitNode(t, counter); });
-    if(root.classList.contains("beat") && root.querySelector(".deck")){
-      // deck line fades in after the headline words
-      var d = root.querySelector(".deck"); d.style.opacity = "0";
-    }
-  });
-  // headings that are marked split-me but sit inside .beat as the element itself
-  Array.prototype.slice.call(document.querySelectorAll("h2.split-me")).forEach(function(h){
-    if(!h.querySelector(".w")){ splitNode(h, {n:0}); }
   });
 
-  // ---------- reveal on scroll for page sections ----------
-  var io = new IntersectionObserver(function(entries){
-    entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
-  }, {threshold:0.25});
-  Array.prototype.slice.call(document.querySelectorAll(".split, .rise")).forEach(function(el){ io.observe(el); });
-
-  // ---------- drawing ----------
+  // ---------- drawing (same for both engines) ----------
   function draw(i){
     var img = frames[i];
     if(!img || !img.complete || !img.naturalWidth) return;
@@ -456,7 +451,6 @@
     if(x + w < W - 0.5) bctx.drawImage(img, iw - E, 0, E, ih, x + w - 1, y, W - (x + w) + 1, h);
     bctx.drawImage(img, x, y, w, h);
   }
-  window.addEventListener("resize", layout);
   function nearestLoaded(i){
     for(var d = 0; d < FRAME_COUNT; d++){
       var a = i - d, b = i + d;
@@ -465,51 +459,178 @@
     }
     return 0;
   }
-  function scrollProgress(){
-    var rect = seq.getBoundingClientRect();
-    var total = seq.offsetHeight - window.innerHeight;
-    return Math.min(1, Math.max(0, -rect.top / total));
-  }
-  function updateBeats(p){
-    beats.forEach(function(b){
-      var from = parseFloat(b.dataset.from), to = parseFloat(b.dataset.to);
-      var on = ready && p >= from && p < to;
-      b.classList.toggle("on", on);
-      var deck = b.querySelector(".deck");
-      if(deck){ deck.style.transition = "opacity .8s ease " + (on ? ".5s" : "0s"); deck.style.opacity = on ? ".92" : "0"; }
-      if(on && !reduce){
-        var t = (p - from) / (to - from);
-        b.style.setProperty("--shift", ((0.5 - t) * 70).toFixed(1) + "px"); // text drifts slowly while you scroll
+  window.addEventListener("resize", layout);
+
+  // =====================================================================
+  //  ENGINE A: GSAP + ScrollTrigger
+  // =====================================================================
+  function startGsap(){
+    var gsap = window.gsap, ScrollTrigger = window.ScrollTrigger;
+    gsap.registerPlugin(ScrollTrigger);
+    ScrollTrigger.config({ignoreMobileResize:true});
+    document.documentElement.classList.add("gsap"); // switches off the CSS-only reveal styles
+
+    var obj = {frame:0};
+
+    // One scrubbed timeline for the whole film. Timeline time = scroll progress (0 to 1).
+    var tl = gsap.timeline({
+      defaults:{ease:"none"},
+      scrollTrigger:{
+        trigger:seq, start:"top top", end:"bottom bottom",
+        scrub: reduce ? true : 0.7,
+        onUpdate:function(self){ progressFill.style.height = (self.progress * 100) + "%"; }
       }
     });
+    // the frame number
+    tl.to(obj, {frame:FRAME_COUNT - 1, duration:HOLD, onUpdate:function(){
+      draw(nearestLoaded(Math.round(obj.frame)));
+    }}, 0);
+    tl.to({}, {duration:1 - HOLD}, HOLD); // keeps the timeline exactly 1 long (the hold at the end)
+
+    // the eight text moments
+    beats.forEach(function(b, i){
+      var from = parseFloat(b.dataset.from), to = parseFloat(b.dataset.to);
+      var words = b.querySelectorAll(".w > span");
+      var deck = b.querySelector(".deck"), hint = b.querySelector(".hint");
+      var last = (i === beats.length - 1);
+
+      if(i === 0){
+        // the first message plays once when the page opens (see introHero)
+        gsap.set(b, {opacity:1});
+        gsap.set(words, {yPercent:115});
+        if(deck) gsap.set(deck, {opacity:0});
+        if(hint) gsap.set(hint, {opacity:0});
+      } else {
+        tl.fromTo(b, {opacity:0}, {opacity:1, duration:0.01}, from);
+        tl.fromTo(words, {yPercent:115}, {yPercent:0, duration:0.022, stagger:0.004, ease:"power3.out"}, from);
+        if(deck) tl.fromTo(deck, {opacity:0}, {opacity:0.92, duration:0.02}, from + 0.012);
+      }
+      if(!reduce){
+        // the text drifts slowly while its message is on screen
+        tl.fromTo(b, {"--shift":"36px"}, {"--shift":"-36px", duration:to - from}, from);
+      }
+      if(!last){
+        tl.to(b, {opacity:0, duration:0.012}, to - 0.012);
+      }
+    });
+
+    // large outlined line slides sideways
+    var pull = document.querySelector(".pull");
+    if(pull && !reduce){
+      gsap.fromTo(pull, {"--x":"-138px"}, {"--x":"138px", ease:"none",
+        scrollTrigger:{trigger:pull, start:"top bottom", end:"bottom top", scrub:0.5}});
+    }
+
+    // headlines further down the page: words rise in
+    Array.prototype.slice.call(document.querySelectorAll(".split")).forEach(function(el){
+      var w = el.querySelectorAll(".w > span");
+      gsap.fromTo(w, {yPercent:115}, {yPercent:0, duration:0.9, stagger:0.07, ease:"power3.out",
+        scrollTrigger:{trigger:el, start:"top 85%", once:true}});
+    });
+    // paragraphs, rows, forms: fade and rise
+    Array.prototype.slice.call(document.querySelectorAll(".rise")).forEach(function(el){
+      gsap.fromTo(el, {opacity:0, y:28}, {opacity:1, y:0, duration:0.8, ease:"power3.out", clearProps:"transform,opacity",
+        scrollTrigger:{trigger:el, start:"top 90%", once:true}});
+    });
+
+    window.addEventListener("load", function(){ ScrollTrigger.refresh(); });
+
+    return {
+      onReady:function(){
+        ScrollTrigger.refresh();
+        var b0 = beats[0];
+        var tl0 = gsap.timeline({delay:0.1});
+        tl0.to(b0.querySelectorAll(".w > span"), {yPercent:0, duration:0.9, stagger:0.07, ease:"power3.out"}, 0);
+        var d0 = b0.querySelector(".deck"), h0 = b0.querySelector(".hint");
+        if(d0) tl0.to(d0, {opacity:0.92, duration:0.8, ease:"power2.out"}, 0.5);
+        if(h0) tl0.to(h0, {opacity:1, duration:0.8, ease:"power2.out"}, 0.7);
+      }
+    };
   }
-  function updateDrift(){
-    var vh = window.innerHeight;
-    drifts.forEach(function(el){
-      var r = el.getBoundingClientRect();
-      if(r.bottom < -200 || r.top > vh + 200) return;
-      var t = (r.top + r.height / 2) / vh;       // 1 at bottom of screen, 0 at top
-      el.style.setProperty("--x", ((t - 0.5) * -230).toFixed(1) + "px");
+
+  // =====================================================================
+  //  ENGINE B: plain JavaScript (used if GSAP cannot be loaded)
+  // =====================================================================
+  function startVanilla(){
+    var target = 0, shown = 0;
+    var io = new IntersectionObserver(function(entries){
+      entries.forEach(function(e){ if(e.isIntersecting){ e.target.classList.add("in"); io.unobserve(e.target); } });
+    }, {threshold:0.25});
+    Array.prototype.slice.call(document.querySelectorAll(".split, .rise")).forEach(function(el){ io.observe(el); });
+    beats.forEach(function(b){ var d = b.querySelector(".deck"); if(d) d.style.opacity = "0"; });
+
+    function scrollProgress(){
+      var rect = seq.getBoundingClientRect();
+      var total = seq.offsetHeight - window.innerHeight;
+      return Math.min(1, Math.max(0, -rect.top / total));
+    }
+    function updateBeats(p){
+      beats.forEach(function(b){
+        var from = parseFloat(b.dataset.from), to = parseFloat(b.dataset.to);
+        var on = ready && p >= from && p < to;
+        b.classList.toggle("on", on);
+        var deck = b.querySelector(".deck");
+        if(deck){ deck.style.transition = "opacity .8s ease " + (on ? ".5s" : "0s"); deck.style.opacity = on ? ".92" : "0"; }
+        if(on && !reduce){
+          var t = (p - from) / (to - from);
+          b.style.setProperty("--shift", ((0.5 - t) * 70).toFixed(1) + "px");
+        }
+      });
+    }
+    function updateDrift(){
+      var vh = window.innerHeight;
+      drifts.forEach(function(el){
+        var r = el.getBoundingClientRect();
+        if(r.bottom < -200 || r.top > vh + 200) return;
+        var t = (r.top + r.height / 2) / vh;
+        el.style.setProperty("--x", ((t - 0.5) * -230).toFixed(1) + "px");
+      });
+    }
+    function tick(){
+      var p = scrollProgress();
+      target = Math.min(p / HOLD, 1) * (FRAME_COUNT - 1);
+      shown += (target - shown) * (reduce ? 1 : 0.14);
+      if(Math.abs(target - shown) < 0.02) shown = target;
+      draw(nearestLoaded(Math.round(shown)));
+      progressFill.style.height = (p * 100) + "%";
+      updateBeats(p);
+      if(!reduce) updateDrift();
+      requestAnimationFrame(tick);
+    }
+    requestAnimationFrame(tick);
+    return {onReady:function(){}};
+  }
+
+  // ---------- load GSAP (local libs/ first, then CDN), then pick the engine ----------
+  function loadScript(src){
+    return new Promise(function(resolve, reject){
+      var s = document.createElement("script");
+      s.src = src; s.onload = resolve; s.onerror = function(){ reject(new Error("failed " + src)); };
+      document.head.appendChild(s);
+    });
+  }
+  function loadOne(pair){
+    return loadScript(pair[0]).catch(function(){ return loadScript(pair[1]); });
+  }
+  function chooseEngine(){
+    loadOne(GSAP_URLS[0]).then(function(){ return loadOne(GSAP_URLS[1]); }).then(function(){
+      if(!(window.gsap && window.ScrollTrigger)) throw new Error("gsap missing");
+      engine = startGsap();
+    }).catch(function(){
+      engine = startVanilla();
+    }).then(function(){
+      if(ready && engine && engine.onReady) engine.onReady();
     });
   }
 
-  function tick(){
-    var p = scrollProgress();
-    target = Math.min(p / HOLD, 1) * (FRAME_COUNT - 1);
-    shown += (target - shown) * (reduce ? 1 : 0.14);
-    if(Math.abs(target - shown) < 0.02) shown = target;
-    draw(nearestLoaded(Math.round(shown)));
-    progressFill.style.height = (p * 100) + "%";
-    updateBeats(p);
-    if(!reduce) updateDrift();
-    requestAnimationFrame(tick);
-  }
-
-  // ---------- preload ----------
+  // ---------- preload frames ----------
   function finishLoad(){
     if(ready) return;
     loader.classList.add("done");
-    setTimeout(function(){ ready = true; }, 350); // hero text plays right after the loader fades
+    setTimeout(function(){
+      ready = true;
+      if(engine && engine.onReady) engine.onReady();
+    }, 350); // the first text plays right after the loader fades
   }
   function onFrame(){
     loaded++;
@@ -527,7 +648,7 @@
   }
   setTimeout(finishLoad, 12000); // never trap the visitor behind the loader
   layout();
-  requestAnimationFrame(tick);
+  chooseEngine();
 
   // ---------- contact form (opens the visitor's email app) ----------
   var form = document.getElementById("contactForm");
